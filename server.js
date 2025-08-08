@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const PropelioLoginAutomation = require('./src/index');
+// const PropelioLoginAutomation = require('./src/index'); // DELETED: lazy-load inside runAutomation
 const logger = require('./src/utils/logger');
 
 const app = express();
@@ -17,6 +17,11 @@ let automationStatus = {
   currentJob: null,
   results: []
 };
+
+/**
+ * Root endpoint (quick readiness probe)
+ */
+app.get('/', (_req, res) => res.status(200).send('service up'));
 
 /**
  * Health check endpoint
@@ -38,7 +43,6 @@ app.get('/health', (req, res) => {
 app.get('/scrap', async (req, res) => {
   const { location } = req.query;
   
-  // Validate location parameter
   if (!location) {
     return res.status(400).json({
       success: false,
@@ -46,7 +50,6 @@ app.get('/scrap', async (req, res) => {
     });
   }
 
-  // Check if automation is already running
   if (automationStatus.isRunning) {
     return res.status(409).json({
       success: false,
@@ -55,10 +58,8 @@ app.get('/scrap', async (req, res) => {
     });
   }
 
-  // Create job ID
   const jobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   
-  // Update status
   automationStatus.isRunning = true;
   automationStatus.currentJob = {
     id: jobId,
@@ -67,7 +68,6 @@ app.get('/scrap', async (req, res) => {
     status: 'starting'
   };
 
-  // Send immediate response
   res.json({
     success: true,
     message: 'Automation started successfully',
@@ -76,7 +76,6 @@ app.get('/scrap', async (req, res) => {
     status: 'running'
   });
 
-  // Run automation in background
   runAutomation(jobId, location);
 });
 
@@ -117,48 +116,38 @@ app.delete('/results', (req, res) => {
  */
 async function runAutomation(jobId, location) {
   try {
+    // Lazy-load to avoid heavy work before the server starts
+    const PropelioLoginAutomation = require('./src/index');
+
     logger.info(`🚀 Starting automation for job ${jobId} with location: ${location}`);
     
-    // Update job status
     automationStatus.currentJob.status = 'running';
     
-    // Create automation instance
     const automation = new PropelioLoginAutomation();
     
-    // Initialize automation
     await automation.initialize();
     
-    // Perform login
     const loginSuccess = await automation.performLogin();
     
     let searchSuccess = false;
     let comparableData = {};
     
     if (loginSuccess) {
-      // Perform search after successful login
       searchSuccess = await automation.performSearch(location);
-      
-      // If search is successful, extract enhanced comparable data
       if (searchSuccess) {
         try {
           logger.info('🔍 Extracting enhanced comparable sales data...');
-          
-          // Navigate to comparable sales page and extract data with filters
           comparableData = await automation.searchActions.navigateToCompSales();
-          
           logger.info('✅ Enhanced comparable sales extraction completed');
           console.log('✅ Enhanced comparable sales data:', comparableData);
-          
         } catch (error) {
           logger.error('❌ Enhanced comparable extraction failed:', error.message);
           console.log('❌ Enhanced comparable extraction failed:', error.message);
-          // Continue with empty comparable data
           comparableData = {};
         }
       }
     }
     
-    // Update results with enhanced data
     const result = {
       jobId: jobId,
       location: location,
@@ -173,7 +162,6 @@ async function runAutomation(jobId, location) {
     
     automationStatus.results.push(result);
     
-    // Update status
     automationStatus.isRunning = false;
     automationStatus.currentJob = {
       ...automationStatus.currentJob,
@@ -190,7 +178,6 @@ async function runAutomation(jobId, location) {
   } catch (error) {
     logger.error(`❌ Automation failed for job ${jobId}:`, error);
     
-    // Update status with error
     automationStatus.isRunning = false;
     automationStatus.currentJob = {
       ...automationStatus.currentJob,
@@ -199,7 +186,6 @@ async function runAutomation(jobId, location) {
       error: error.message
     };
     
-    // Add error result
     automationStatus.results.push({
       jobId: jobId,
       location: location,
@@ -235,6 +221,7 @@ app.use((req, res) => {
     success: false,
     error: 'Endpoint not found',
     availableEndpoints: [
+      'GET / - Root',
       'GET /health - Health check',
       'GET /scrap?location=Texas - Start automation (includes enhanced comparable extraction)',
       'GET /status - Get automation status',
@@ -245,16 +232,17 @@ app.use((req, res) => {
 });
 
 /**
- * Start server
+ * Start server (bind to 0.0.0.0 for Cloud Run)
  */
-app.listen(PORT, () => {
-  logger.info(`🚀 Express server running on port ${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  logger.info(`🚀 Express server running on http://0.0.0.0:${PORT}`);
   logger.info(`📡 Available endpoints:`);
-  logger.info(`   GET  /health - Health check`);
+  logger.info(`   GET  /           - Root`);
+  logger.info(`   GET  /health     - Health check`);
   logger.info(`   GET  /scrap?location=Texas - Start automation`);
-  logger.info(`   GET  /status - Get automation status`);
-  logger.info(`   GET  /results - Get automation results`);
-  logger.info(`   DELETE /results - Clear results`);
+  logger.info(`   GET  /status     - Get automation status`);
+  logger.info(`   GET  /results    - Get automation results`);
+  logger.info(`   DELETE /results  - Clear results`);
 });
 
-module.exports = app; 
+module.exports = app;
