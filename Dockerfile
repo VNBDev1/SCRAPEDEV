@@ -1,5 +1,5 @@
 FROM ghcr.io/puppeteer/puppeteer:latest
-WORKDIR /app
+WORKDIR /home/pptruser/app
 
 COPY package*.json ./
 RUN npm ci --omit=dev
