@@ -20,9 +20,12 @@ RUN chown -R pptruser:pptruser /home/pptruser/app
 USER pptruser
 
 # Ensure Puppeteer uses the Chrome in the image
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome
-
 ENV NODE_ENV=production
 ENV PORT=8080
+ENV HEADLESS=true
+ENV PUPPETEER_DISABLE_HEADLESS_WARNING=true
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome
+ENV CHROME_PATH=/usr/bin/google-chrome
+
 EXPOSE 8080
 CMD ["npm","start"]
