@@ -1,37 +1,28 @@
 FROM ghcr.io/puppeteer/puppeteer:21.5.2
 
-# Build as root
+# Install as root, then run as pptruser
 USER root
+RUN mkdir -p /home/pptruser/app && chown -R pptruser:pptruser /home/pptruser/app
 WORKDIR /home/pptruser/app
 
-# Ensure a stable Puppeteer cache location (writable at runtime)
-ENV HOME=/home/pptruser
-ENV PUPPETEER_CACHE_DIR=/home/pptruser/.cache/puppeteer
-RUN mkdir -p ${PUPPETEER_CACHE_DIR} && chown -R pptruser:pptruser ${PUPPETEER_CACHE_DIR} /home/pptruser/app
-
-# Copy manifests first for better caching
+# Copy manifests first (better cache)
 COPY package*.json ./
 
-# Skip Chromium during npm install (we'll install CfT explicitly)
+# IMPORTANT: Do NOT download Chrome in build (base image already has it)
 ENV PUPPETEER_SKIP_DOWNLOAD=true
+
+# Install deps (omit dev to keep image small)
 RUN npm ci --omit=dev
 
-# Install Chrome for Testing once at build time
-RUN npx puppeteer browsers install chrome
-
-# Copy app source
+# Copy the rest
 COPY . .
 RUN chown -R pptruser:pptruser /home/pptruser/app
+USER pptruser
 
-# Optional: point explicitly to Chrome for Testing binary
+# Ensure Puppeteer uses the Chrome in the image
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome
 
-# Runtime env
 ENV NODE_ENV=production
 ENV PORT=8080
 EXPOSE 8080
-
-# Run as non-root (Cloud Run friendly)
-USER pptruser
-
 CMD ["npm","start"]
