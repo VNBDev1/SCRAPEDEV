@@ -5,7 +5,6 @@ const SessionManager = require('./browser/sessionManager');
 const config = require('./config/environment');
 const logger = require('./utils/logger');
 
-
 class PropelioLoginAutomation {
   constructor() {
     this.browserManager = new BrowserManager();
@@ -15,17 +14,26 @@ class PropelioLoginAutomation {
     this.sessionReused = false;
   }
 
-
   async initialize() {
     try {
       logger.info('🚀 Starting Propelio Genesis Login Automation');
-  
-      const page = await this.browserManager.launch();
-  
+
+      // Pass Cloud Run–friendly flags; if BrowserManager.launch ignores options, this is harmless.
+      const page = await this.browserManager.launch({
+        headless: process.env.HEADLESS || 'new', // or true
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-gpu',
+          '--single-process',
+          '--no-zygote'
+        ]
+      });
+
       this.loginActions = new LoginActions(page);
-    
       this.searchActions = new SearchActions(page);
- 
+
       this.sessionLoaded = await SessionManager.loadSession(page);
       logger.info('✅ Automation initialized successfully');
     } catch (error) {
@@ -34,10 +42,8 @@ class PropelioLoginAutomation {
     }
   }
 
-
   async performLogin() {
     try {
-
       const { email, password } = config.credentials;
       const sessionData = await SessionManager.loadSession();
       if (sessionData) {
@@ -62,7 +68,6 @@ class PropelioLoginAutomation {
       }
 
       await this.browserManager.navigateTo(config.targetUrl);
-
       await this.loginActions.performLogin(email, password);
 
       const isSuccessful = await this.loginActions.isLoginSuccessful();
@@ -73,7 +78,6 @@ class PropelioLoginAutomation {
         this.sessionReused = false;
         return true;
       } else {
-    
         return false;
       }
 
@@ -86,16 +90,15 @@ class PropelioLoginAutomation {
   async performSearch(location) {
     try {
       if (this.sessionReused) {
+        // no-op placeholder
       }
-    
       await this.searchActions.performSearch(location);
-     
+      // NOTE: keep behavior unchanged (no explicit return to avoid breaking existing server.js logic)
     } catch (error) {
       logger.error(`Search process failed for location: ${location}:`, error);
       throw error;
     }
   }
-
 
   async run(location) {
     try {
@@ -112,7 +115,6 @@ class PropelioLoginAutomation {
       throw error;
     }
   }
-
 
   async cleanup() {
     try {
@@ -131,4 +133,4 @@ class PropelioLoginAutomation {
   }
 }
 
-module.exports = PropelioLoginAutomation; 
+module.exports = PropelioLoginAutomation;
