@@ -1,15 +1,13 @@
 require('dotenv').config();
 
-
 class EnvironmentConfig {
   constructor() {
     this.validateRequiredEnvVars();
   }
 
-
   validateRequiredEnvVars() {
     const required = ['PROPELIO_EMAIL', 'PROPELIO_PASSWORD'];
-    const missing = required.filter(key => !process.env[key]);
+    const missing = required.filter((key) => !process.env[key]);
 
     if (missing.length > 0) {
       throw new Error(
@@ -18,7 +16,6 @@ class EnvironmentConfig {
     }
   }
 
-
   get credentials() {
     return {
       email: process.env.PROPELIO_EMAIL,
@@ -26,34 +23,35 @@ class EnvironmentConfig {
     };
   }
 
-
   get browserConfig() {
     return {
-      headless: false, 
-      slowMo: parseInt(process.env.SLOW_MO) || 20,
-      timeout: parseInt(process.env.TIMEOUT) || 30000,
-      defaultViewport: {
-        width: 1280,
-        height: 720,
-      },
-      userDataDir: './puppeteer_profile', 
+      // 'new' is recommended for Puppeteer 21+; allow disabling via HEADLESS=false
+      headless: process.env.HEADLESS === 'false' ? false : 'new',
+      slowMo: parseInt(process.env.SLOW_MO || '0', 10),
+      timeout: parseInt(process.env.TIMEOUT || '60000', 10),
+      defaultViewport: { width: 1280, height: 720 },
+      userDataDir: './puppeteer_profile',
+      // Prefer the Chrome bundled in the base image; fallback to env override
       executablePath:
+        process.env.PUPPETEER_EXECUTABLE_PATH ||
         process.env.CHROME_PATH ||
-        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+        '/usr/bin/google-chrome',
+      // Critical flags for Cloud Run
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
-        '--no-first-run',
         '--disable-gpu',
+        '--no-zygote',
+        '--no-first-run',
         '--disable-extensions',
-        '--disable-plugins',
-        '--disable-web-security',
-        '--remote-debugging-port=9222',
+        '--single-process',
+        '--remote-debugging-pipe',
       ],
+      // Use pipe transport instead of remote-debugging-port to avoid WS timeout
+      pipe: true,
     };
   }
-
 
   get logging() {
     return {
